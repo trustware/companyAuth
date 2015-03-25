@@ -1,1 +1,1 @@
-web: python service.py $PATH
+web: python main.py $PATH
