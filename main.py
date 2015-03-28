@@ -6,41 +6,64 @@ import urlparse
 app = Flask(__name__)
 
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-  if request.method == 'GET':
-    return 'Hello world!'
+@app.route('/authenticate', methods=['POST'])
+def authenticate():
+  # Get request data
+  auth_id = request.form.get('id', None)
+  auth_token = request.form.get('token', None)
+  auth_url = request.form.get('url', None)
+  if auth_id is None or auth_token is None or auth_url is None:
+    return 'Bad request'
 
-  elif request.method == 'POST':
-    # Get request data
-    auth_id = request.form.get('id', None)
-    auth_token = request.form.get('token', None)
-    auth_url = request.form.get('url', None)
-    if auth_id is None or auth_token is None or auth_url is None:
-      return 'Bad request'
+  conn = g.db_conn
+  cur = g.db_cur
 
-    conn = g.db_conn
-    cur = g.db_cur
+  # Search for device in database
+  cur.execute('SELECT uses FROM devices WHERE id=%s', (auth_id))
+  rows = cur.fetchall()
+  if len(rows) == 0:
+    return 'Device not found'
 
-    # Search for device in database
-    cur.execute('SELECT uses FROM devices WHERE id=%s', (auth_id))
-    rows = cur.fetchall()
-    if len(rows) == 0:
-      return 'Device not found'
+  # Update device trust
+  auth_uses = rows[0][0]
+  auth_uses += 1
+  cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
+  conn.commit()
 
-    # Update device trust
-    auth_uses = rows[0][0]
-    auth_uses += 1
-    cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
-    conn.commit()
+  # Send request info to remote URL
+  success = send_to_remote(auth_url, auth_token, auth_uses)
+  if not success:
+    return 'Could not send to remote'
 
-    # Send request info to remote URL
-    success = send_to_remote(auth_url, auth_token, auth_uses)
-    if not success:
-      return 'Could not send to remote'
+  # Indicate success
+  return 'Success'
 
-    # Indicate success
-    return 'Success'
+
+@app.route('/register', methods=['POST'])
+def register():
+  # Get request data
+  auth_id = request.form.get('id', None)
+  if auth_id is None:
+    return 'Bad request'
+
+  conn = g.db_conn
+  cur = g.db_cur
+
+  # Ensure device does not already exist
+  cur.execute('SELECT * FROM devices WHERE id=%s', (auth_id))
+  rows = cur.fetchall()
+  if len(rows) != 0:
+    return 'Device already exists'
+
+  # Insert new device
+  try:
+    cur.execute("INSERT INTO devices (id, uses) VALUES (%s, %s)", (auth_id, 0))
+  except psycopg2.IntegrityError:
+    return 'Device already exists'
+  conn.commit()
+
+  # Indicate success
+  return 'Success'
 
 
 @app.before_request
