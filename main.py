@@ -1,19 +1,25 @@
 from flask import Flask, g, request
 import os
 import psycopg2
+import urllib
+import urllib2
 import urlparse
 
 app = Flask(__name__)
+STATUS_OK = 200
+STATUS_BAD_REQUEST = 400
+STATUS_INTERNAL_ERROR = 500
 
 
 @app.route('/authenticate', methods=['POST'])
 def authenticate():
   # Get request data
-  auth_id = request.form.get('id', None)
+  auth_id = request.form.get('uid', None)
+  auth_opt = request.form.get('opt', None)
   auth_token = request.form.get('token', None)
   auth_url = request.form.get('url', None)
-  if auth_id is None or auth_token is None or auth_url is None:
-    return 'Bad request'
+  if auth_id is None or auth_opt is None or auth_token is None or auth_url is None:
+    return 'Bad request', STATUS_BAD_REQUEST
 
   conn = g.db_conn
   cur = g.db_cur
@@ -21,49 +27,46 @@ def authenticate():
   # Search for device in database
   cur.execute('SELECT id, uses FROM devices WHERE id=%s', (auth_id,))
   rows = cur.fetchall()
-  if len(rows) == 0:
-    return 'Device not found'
 
-  # Update device trust
-  auth_uses = int(rows[0][0])
-  auth_uses += 1
-  cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
-  conn.commit()
+  if len(rows) == 0:
+    auth_trust = 0
+  else:
+    # Update device trust
+    auth_uses = int(rows[0][0])
+    auth_uses += 1
+    cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
+    conn.commit()
+    
+    auth_trust = calculate_trust(auth_uses)
 
   # Send request info to remote URL
-  success = send_to_remote(auth_url, auth_token, auth_uses)
+  success = send_to_remote(auth_url, auth_token, auth_trust)
   if not success:
-    return 'Could not send to remote'
+    return 'Could not send to remote', STATUS_INTERNAL_ERROR
 
   # Indicate success
-  return 'Success'
+  return 'Success', STATUS_OK
 
 
 @app.route('/register', methods=['POST'])
 def register():
   # Get request data
-  auth_id = request.form.get('id', None)
+  auth_id = request.form.get('uid', None)
   if auth_id is None:
-    return 'Bad request'
+    return 'Bad request', STATUS_BAD_REQUEST
 
   conn = g.db_conn
   cur = g.db_cur
-
-  # Ensure device does not already exist
-  cur.execute('SELECT * FROM devices WHERE id=%s', (auth_id,))
-  rows = cur.fetchall()
-  if len(rows) != 0:
-    return 'Device already exists'
 
   # Insert new device
   try:
     cur.execute("INSERT INTO devices (id, uses) VALUES (%s, %s)", (auth_id, 0))
   except psycopg2.IntegrityError:
-    return 'Device already exists'
+    return 'Device already exists', STATUS_BAD_REQUEST
   conn.commit()
 
   # Indicate success
-  return 'Success'
+  return 'Success', STATUS_OK
 
 
 @app.before_request
@@ -84,8 +87,23 @@ def teardown_request(exception):
     g.db_conn.close()
 
 
-def send_to_remote(auth_url, auth_token, auth_uses):
-  # TODO
+def calculate_trust(auth_uses):
+  # TODO: update trust algorithm
+  return min(100 - auth_uses, 0)
+
+
+def send_to_remote(auth_url, auth_token, auth_trust):
+  args = {'token':auth_token,
+          'trust':auth_trust}
+  data = urllib.urlencode(args)
+  request = urllib2.Request(auth_url, data)
+  try:
+    response = urllib2.urlopen(request)
+  except urllib2.HTTPError as e:
+    print e
+    print e.read()
+    return False
+
   return True
 
 
@@ -114,7 +132,6 @@ def get_db_connection():
     db_conn = None
     print "Database error %s: %s", (e.pgcode, e.pgerror)
   return db_conn
-
 
 
 def get_port():
