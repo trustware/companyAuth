@@ -19,13 +19,13 @@ def authenticate():
   cur = g.db_cur
 
   # Search for device in database
-  cur.execute('SELECT uses FROM devices WHERE id=%s', (auth_id))
+  cur.execute('SELECT id, uses FROM devices WHERE id=%s', (auth_id,))
   rows = cur.fetchall()
   if len(rows) == 0:
     return 'Device not found'
 
   # Update device trust
-  auth_uses = rows[0][0]
+  auth_uses = int(rows[0][0])
   auth_uses += 1
   cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
   conn.commit()
@@ -50,7 +50,7 @@ def register():
   cur = g.db_cur
 
   # Ensure device does not already exist
-  cur.execute('SELECT * FROM devices WHERE id=%s', (auth_id))
+  cur.execute('SELECT * FROM devices WHERE id=%s', (auth_id,))
   rows = cur.fetchall()
   if len(rows) != 0:
     return 'Device already exists'
