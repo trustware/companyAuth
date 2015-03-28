@@ -15,10 +15,10 @@ STATUS_INTERNAL_ERROR = 500
 def authenticate():
   # Get request data
   auth_id = request.form.get('uid', None)
-  auth_opt = request.form.get('opt', None)
+  auth_otp = request.form.get('otp', None)
   auth_token = request.form.get('token', None)
   auth_url = request.form.get('url', None)
-  if auth_id is None or auth_opt is None or auth_token is None or auth_url is None:
+  if auth_id is None or auth_otp is None or auth_token is None or auth_url is None:
     return 'Bad request', STATUS_BAD_REQUEST
 
   conn = g.db_conn
