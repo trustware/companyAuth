@@ -99,7 +99,7 @@ def teardown_request(exception):
 
 def calculate_trust(auth_uses):
   # TODO: update trust algorithm
-  return min(100 - auth_uses, 0)
+  return max(100 - auth_uses, 0)
 
 
 def send_to_remote(auth_url, auth_token, auth_trust):
