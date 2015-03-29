@@ -18,8 +18,10 @@ def authenticate():
   auth_otp = request.form.get('otp', None)
   auth_token = request.form.get('token', None)
   auth_url = request.form.get('url', None)
+  log("Request: "+str(request.form))
   if auth_id is None or auth_otp is None or auth_token is None or auth_url is None:
-    return 'Bad request', STATUS_BAD_REQUEST
+    log('Invalid request -> '+str(STATUS_BAD_REQUEST))
+    return 'Invalid request', STATUS_BAD_REQUEST
 
   conn = g.db_conn
   cur = g.db_cur
@@ -30,6 +32,7 @@ def authenticate():
 
   if len(rows) == 0:
     auth_trust = 0
+    log('Invalid device -> auth_trust=0')
   else:
     # Update device trust
     auth_uses = int(rows[0][0])
@@ -38,6 +41,7 @@ def authenticate():
     conn.commit()
     
     auth_trust = calculate_trust(auth_uses)
+    log('OK device -> auth_trust='+str(auth_trust))
 
   # Send request info to remote URL
   success = send_to_remote(auth_url, auth_token, auth_trust)
@@ -45,6 +49,7 @@ def authenticate():
     return 'Could not send to remote', STATUS_INTERNAL_ERROR
 
   # Indicate success
+  log('Success -> '+str(STATUS_OK))
   return 'Success', STATUS_OK
 
 
@@ -52,8 +57,10 @@ def authenticate():
 def register():
   # Get request data
   auth_id = request.form.get('uid', None)
+  log("Request: "+str(request.form))
   if auth_id is None:
-    return 'Bad request', STATUS_BAD_REQUEST
+    log('Invalid request -> '+str(STATUS_BAD_REQUEST))
+    return 'Invalid request', STATUS_BAD_REQUEST
 
   conn = g.db_conn
   cur = g.db_cur
@@ -62,10 +69,12 @@ def register():
   try:
     cur.execute("INSERT INTO devices (id, uses) VALUES (%s, %s)", (auth_id, 0))
   except psycopg2.IntegrityError:
+    log('Device already exists -> '+str(STATUS_BAD_REQUEST))
     return 'Device already exists', STATUS_BAD_REQUEST
   conn.commit()
 
   # Indicate success
+  log('Success -> '+str(STATUS_OK))
   return 'Success', STATUS_OK
 
 
@@ -74,7 +83,8 @@ def before_request():
   # Get connection to database for this request or die
   g.db_conn = get_db_connection()
   if g.db_conn is None:
-    abort(500)
+    log('Failed to connect to db -> '+str(STATUS_INTERNAL_ERROR))
+    abort(STATUS_INTERNAL_ERROR)
   g.db_cur = g.db_conn.cursor()
 
 
@@ -100,20 +110,22 @@ def send_to_remote(auth_url, auth_token, auth_trust):
   try:
     response = urllib2.urlopen(request)
   except urllib2.HTTPError as e:
-    print e
-    print e.read()
+    log('Could not send to remote -> '+str(e)+" -> "+e.read())
     return False
 
   return True
+
+
+def log(info):
+  print info
 
 
 def get_db_configuration():
   urlparse.uses_netloc.append('postgres')
   db_url = os.environ.get('DATABASE_URL', None)
   if db_url is None:
-    print 'DATABASE_URL environment variable not found'
-    print 'Exiting...'
-    return
+    log('DATABASE_URL environment variable not found')
+    return {'username': '', 'password': '', 'hostname': '', 'database': ''}
   url = urlparse.urlparse(os.environ['DATABASE_URL'])
 
   return {'username': url.username,
@@ -130,7 +142,7 @@ def get_db_connection():
                                host=app.config['db_host'])
   except psycopg2.Error as e:
     db_conn = None
-    print "Database error %s: %s", (e.pgcode, e.pgerror)
+    log('Database error -> '+str(e.pgcode)+" -> "+e.pgerror)
   return db_conn
 
 
