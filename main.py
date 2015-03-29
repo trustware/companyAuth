@@ -35,7 +35,7 @@ def authenticate():
     log('Invalid device -> auth_trust=0')
   else:
     # Update device trust
-    auth_uses = int(rows[0][0])
+    auth_uses = int(rows[0][1])
     auth_uses += 1
     cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
     conn.commit()
