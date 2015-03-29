@@ -18,7 +18,8 @@ def authenticate():
   auth_otp = request.form.get('otp', None)
   auth_token = request.form.get('token', None)
   auth_url = request.form.get('url', None)
-  log("Request: "+str(request.form))
+  log("Request header: "+str(request.headers))
+  log("Request data:   "+str(request.form))
   if auth_id is None or auth_otp is None or auth_token is None or auth_url is None:
     log('Invalid request -> '+str(STATUS_BAD_REQUEST))
     return 'Invalid request', STATUS_BAD_REQUEST
@@ -57,7 +58,8 @@ def authenticate():
 def register():
   # Get request data
   auth_id = request.form.get('uid', None)
-  log("Request: "+str(request.form))
+  log("Request header: "+str(request.headers))
+  log("Request data:   "+str(request.form))
   if auth_id is None:
     log('Invalid request -> '+str(STATUS_BAD_REQUEST))
     return 'Invalid request', STATUS_BAD_REQUEST
