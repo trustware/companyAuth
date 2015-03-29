@@ -71,6 +71,9 @@ def register():
   except psycopg2.IntegrityError:
     log('Device already exists -> '+str(STATUS_BAD_REQUEST))
     return 'Device already exists', STATUS_BAD_REQUEST
+  except Exception as e:
+    log(str(e))
+    return 'Internal error', STATUS_INTERNAL_ERROR
   conn.commit()
 
   # Indicate success
@@ -106,11 +109,13 @@ def send_to_remote(auth_url, auth_token, auth_trust):
   args = {'token':auth_token,
           'trust':auth_trust}
   data = urllib.urlencode(args)
-  request = urllib2.Request(auth_url, data)
   try:
+    request = urllib2.Request(auth_url, data)
     response = urllib2.urlopen(request)
-  except urllib2.HTTPError as e:
-    log('Could not send to remote -> '+str(e)+" -> "+e.read())
+  except HTTPError as e:
+    log('HTTPError '+str(e.code)+': '+str(e.reason))
+  except Exception as e:
+    log(str(e))
     return False
 
   return True
@@ -143,6 +148,9 @@ def get_db_connection():
   except psycopg2.Error as e:
     db_conn = None
     log('Database error -> '+str(e.pgcode)+" -> "+e.pgerror)
+  except Exception as e:
+    db_conn = None
+    log(str(e))
   return db_conn
 
 
