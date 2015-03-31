@@ -14,7 +14,7 @@ def main(argc, argv):
   deviceID = argv[3]
   one_time_password = 'abcdef'
   token = 'ghijkl'
-  target_url = 'http://gotdevices.herokuapp.com/devicecheck'
+  target_url = 'https://gotdevices.herokuapp.com/devicecheck'
 
   if server == 'local':
     trust_url = 'http://localhost:5000'
