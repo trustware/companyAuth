@@ -1,4 +1,7 @@
 .env
-lib/python2.7/site-packages/*.pyc
-lib/python2.7/site-packages/*/*.pyc
-lib/python2.7/site-packages/*/debug/*.pyc
+env/*
+bin/*
+lib/*
+local/*
+include/*
+
