@@ -4,6 +4,7 @@ import psycopg2
 import urllib
 import urllib2
 import urlparse
+import onetimepass as otp
 
 app = Flask(__name__)
 STATUS_OK = 200
@@ -27,21 +28,35 @@ def authenticate():
   cur = g.db_cur
 
   # Search for device in database
-  cur.execute('SELECT id, uses FROM devices WHERE id=%s', (auth_id,))
+  cur.execute('SELECT id, uses, secret FROM devices WHERE id=%s', (auth_id,))
   rows = cur.fetchall()
-
+  
+  auth_trust = 0
   if len(rows) == 0:
     auth_trust = 0
     log('Invalid device -> auth_trust=0')
   else:
-    # Update device trust
+    # Get info
     auth_uses = int(rows[0][1])
-    auth_uses += 1
-    cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
-    conn.commit()
+    auth_secret = str(rows[0][2])
+
+    # Verify requets using time-based one-time-password
+    try:
+      is_valid = otp.valid_totp(token=auth_otp, secret=auth_secret)
+    except TypeError:
+      is_valid = False
+    if not is_valid:
+      auth_trust = 0
+      log('Invalid token -> auth_trust=0')
+    else:
+      # Update device trust
+      auth_uses = int(rows[0][1])
+      auth_uses += 1
+      cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
+      conn.commit()
     
-    auth_trust = calculate_trust(auth_uses)
-    log('OK device -> auth_trust='+str(auth_trust))
+      auth_trust = calculate_trust(auth_uses)
+      log('OK device -> auth_trust='+str(auth_trust))
 
   # Send request info to remote URL
   success = send_to_remote(auth_url, auth_token, auth_trust)
@@ -57,8 +72,9 @@ def authenticate():
 def register():
   # Get request data
   auth_id = request.form.get('uid', None)
+  auth_secret = request.form.get('secret', None)
   log("Request data:   "+str(request.form))
-  if auth_id is None:
+  if auth_id is None or auth_secret is None:
     log('Invalid request -> '+str(STATUS_BAD_REQUEST))
     return 'Invalid request', STATUS_BAD_REQUEST
 
@@ -67,7 +83,7 @@ def register():
 
   # Insert new device
   try:
-    cur.execute("INSERT INTO devices (id, uses) VALUES (%s, %s)", (auth_id, 0))
+    cur.execute("INSERT INTO devices (id, uses, secret) VALUES (%s, %s, %s)", (auth_id, 0, auth_secret))
   except psycopg2.IntegrityError:
     log('Device already exists -> '+str(STATUS_BAD_REQUEST))
     return 'Device already exists', STATUS_BAD_REQUEST
