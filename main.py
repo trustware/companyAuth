@@ -44,10 +44,11 @@ def authenticate():
     try:
       is_valid = otp.valid_totp(token=auth_otp, secret=auth_secret)
     except TypeError:
+      log('Invalid token')
       is_valid = False
     if not is_valid:
       auth_trust = 0
-      log('Invalid token -> auth_trust=0')
+      log('Incorrect token -> auth_trust=0')
     else:
       # Update device trust
       auth_uses = int(rows[0][1])
