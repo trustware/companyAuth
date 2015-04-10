@@ -128,7 +128,7 @@ def send_to_remote(auth_url, auth_token, auth_trust):
   try:
     request = urllib2.Request(auth_url, data)
     response = urllib2.urlopen(request)
-  except HTTPError as e:
+  except urllib2.HTTPError as e:
     log('HTTPError '+str(e.code)+': '+str(e.reason))
   except Exception as e:
     log(str(e))
