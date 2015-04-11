@@ -2,56 +2,75 @@ import urllib
 import urllib2
 import sys
 import hashlib
-import onetimepass as otp
+import onetimepass
+import random
+import string
+import sys
 
 
 def main(argc, argv):
-  if argc != 5:
-    print 'usage: python %s [local|remote] [register|authenticate] uid secret' % argv[0]
+  usage = 'usage: python %s [register [local|remote] | authenticate [local|remote] uid secret token]' % argv[0]
+  localURL = 'http://localhost:5000'
+  remoteURL = 'http://eecs588-auth.herokuapp.com'
+  targetURL = 'https://gotdevices.herokuapp.com/devicecheck'
+
+  if argc < 3:
+    print  usage
     exit()
 
-  server = argv[1].lower()
-  task = argv[2].lower()
+  serverURL = ''
+  if argv[2].lower() == 'local':
+    serverURL = localURL
+  elif argv[2].lower() == 'remote':
+    serverURL = remoteURL
+  else:
+    print usage
+    exit()
 
-  deviceID = argv[3]
-  deviceSecret = argv[4]
+  if argv[1].lower() == 'register' and argc == 3:
+    register(serverURL)
+  elif argv[1].lower() == 'authenticate' and argc == 6:
+    authenticate(serverURL, argv[3], argv[4], argv[5], targetURL)
+  else:
+    print usage
+    exit()
+
+
+def register(serverURL):
+  random.seed()
+  uid = random.randint(0, 2**31 - 1)
+  secret = ''.join([random.choice(string.uppercase + '234567') for i in range(16)])
+  deviceToken = onetimepass.get_totp(secret)
+
+  print 'Device credentials: [' + str(uid) + ', ' + str(secret) + ']'
+  args = {'uid':uid, 'secret':secret}
+  sendRequest(serverURL + '/register', args)
+
+
+def authenticate(serverURL, uid, secret, token, targetURL):
   try:
-    deviceToken = otp.get_totp(deviceSecret)
-  except TypeError:
-    print 'Secrets must be 16 characters long, only letters'
+    otp = onetimepass.get_totp(secret)
+  except TypeError as e:
+    print 'Secret must be a multiple of 8 alphanumeric characters'
     exit()
-  token = 'ghijkl'
-  target_url = 'https://gotdevices.herokuapp.com/devicecheck'
+  except Exception as e:
+    print e
+    return
 
-  if server == 'local':
-    trust_url = 'http://localhost:5000'
-  elif server == 'remote':
-    trust_url = 'http://eecs588-auth.herokuapp.com'
-  else:
-    print 'usage: python %s [local|remote] [register|authenticate] uid secret' % argv[0]
-    exit()
+  args = {'uid':uid,
+          'otp':otp,
+          'token':token,
+          'url':targetURL}
+  sendRequest(serverURL + '/authenticate', args)
 
-  args = {}
-  if task == 'register':
-    trust_url += '/register'
-    args = {'uid':deviceID, 'secret':deviceSecret}
-  elif task == 'authenticate':
-    trust_url += '/authenticate'
-    args = {'uid':deviceID,
-            'otp':deviceToken,
-            'token':token,
-            'url':target_url}
-  else:
-    print 'usage: python %s [local|remote] [register|authenticate] uid secret' % argv[0]
-    exit()
 
+def sendRequest(url, args):
   data = urllib.urlencode(args)
-  request = urllib2.Request(trust_url, data)
+  request = urllib2.Request(url, data)
   try:
     response = urllib2.urlopen(request)
   except urllib2.HTTPError as e:
     print e
-    print e.read()
     return
 
   html = response.read()
