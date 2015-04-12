@@ -5,6 +5,7 @@ import urllib
 import urllib2
 import urlparse
 import onetimepass as otp
+import time
 
 app = Flask(__name__)
 STATUS_OK = 200
@@ -39,15 +40,24 @@ def authenticate():
     # Get info
     auth_uses = int(rows[0][1])
     auth_secret = str(rows[0][2])
+    auth_otp = int(auth_otp)
 
     # Verify requets using time-based one-time-password
+    is_valid = False
     try:
-      is_valid = otp.valid_totp(token=auth_otp, secret=auth_secret)
+      if not otp._is_possible_token(auth_otp, 6):
+        log('Invalid token')
+      else:
+        otp_now = otp.get_hotp(auth_secret, int(time.time()) // 30)
+        otp_prev = otp_now - 1
+        otp_next = otp_now + 1
+        log('Correct otp: ' + str(otp_now))
+        if auth_otp == otp_now or auth_otp == otp_prev or auth_otp == otp_next:
+          is_valid = True
     except TypeError:
       log('Invalid token')
       is_valid = False
     if not is_valid:
-      auth_trust = 0
       log('Incorrect token -> auth_trust=0')
     else:
       # Update device trust
