@@ -48,9 +48,10 @@ def authenticate():
       if not otp._is_possible_token(auth_otp, 6):
         log('Invalid token')
       else:
-        otp_now = otp.get_hotp(auth_secret, int(time.time()) // 30)
-        otp_prev = otp_now - 1
-        otp_next = otp_now + 1
+        interval_num = int(time.time()) // 30
+        otp_now = otp.get_hotp(auth_secret, interval_num)
+        otp_prev = otp.get_hotp(auth_secret, interval_num - 1)
+        otp_next = otp.get_hotp(auth_secret, interval_num + 1)
         log('Correct otp: ' + str(otp_now))
         if auth_otp == otp_now or auth_otp == otp_prev or auth_otp == otp_next:
           is_valid = True
