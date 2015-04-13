@@ -38,7 +38,7 @@ def main(argc, argv):
 
 def register(serverURL):
   random.seed()
-  uid = random.randint(0, 2**31 - 1)
+  uid = random.randint(0, 99999999)
   secret = ''.join([random.choice(string.uppercase + '234567') for i in range(16)])
   deviceToken = onetimepass.get_totp(secret)
 
