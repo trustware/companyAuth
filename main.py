@@ -6,6 +6,11 @@ import urllib2
 import urlparse
 import onetimepass as otp
 import time
+from Crypto.PublicKey import RSA
+from Crypto.Hash import SHA256
+from Crypto.Signature import PKCS1_v1_5
+import binascii
+
 
 app = Flask(__name__)
 STATUS_OK = 200
@@ -135,8 +140,14 @@ def calculate_trust(auth_uses):
 
 
 def send_to_remote(auth_url, auth_token, auth_trust):
+  signer = PKCS1_v1_5.new(app.config['private_key'])
+  token_hash = SHA256.new(auth_token)
+  token_sig_b64 = signer.sign(token_hash)
+  token_sig_hex = binascii.hexlify(token_sig_b64)
+
   args = {'token':auth_token,
-          'trust':auth_trust}
+          'trust':auth_trust,
+          'sig':token_sig_hex}
   data = urllib.urlencode(args)
   try:
     request = urllib2.Request(auth_url, data)
@@ -154,12 +165,20 @@ def log(info):
   print info
 
 
+def get_cryto_configuration():
+  private_key = os.environ.get('PRIVATE_KEY', None)
+  if private_key is None:
+    log('PRIVATE_KEY environment variable not found')
+    return None
+  return {'private_key': private_key.replace('\\n', '\n')}
+
+
 def get_db_configuration():
   urlparse.uses_netloc.append('postgres')
   db_url = os.environ.get('DATABASE_URL', None)
   if db_url is None:
     log('DATABASE_URL environment variable not found')
-    return {'username': '', 'password': '', 'hostname': '', 'database': ''}
+    return None
   url = urlparse.urlparse(os.environ['DATABASE_URL'])
 
   return {'username': url.username,
@@ -190,10 +209,19 @@ def get_port():
 
 if __name__ == "__main__":
   db_info = get_db_configuration()
-  app.config['db_user'] = db_info['username']
-  app.config['db_pword'] = db_info['password']
-  app.config['db_host'] = db_info['hostname']
-  app.config['db_name'] = db_info['database']
+  if db_info is None:
+    exit()
+  else:
+    app.config['db_user'] = db_info['username']
+    app.config['db_pword'] = db_info['password']
+    app.config['db_host'] = db_info['hostname']
+    app.config['db_name'] = db_info['database']
+
+  crypto_info = get_cryto_configuration()
+  if crypto_info is None:
+    exit()
+  else:
+    app.config['private_key'] = RSA.importKey(crypto_info['private_key'])
 
   app.config['DEBUG'] = True
 
