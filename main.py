@@ -34,7 +34,7 @@ def authenticate():
   cur = g.db_cur
 
   # Search for device in database
-  cur.execute('SELECT id, uses, secret FROM devices WHERE id=%s', (auth_id,))
+  cur.execute('SELECT id, uses, secret, last_used FROM devices WHERE id=%s', (auth_id,))
   rows = cur.fetchall()
   
   auth_trust = 0
@@ -44,19 +44,20 @@ def authenticate():
     # Get info
     auth_uses = int(rows[0][1])
     auth_secret = str(rows[0][2])
+    auth_lastused = int(rows[0][3])
     auth_otp = int(auth_otp)
 
-    # Verify requets using time-based one-time-password
+    # Verify request using time-based one-time-password
     is_valid = False
     try:
       if not otp._is_possible_token(auth_otp, 6):
         log('Invalid token')
       else:
         # Accept OTPs from current, previous, and next 30 second intervals
-        interval_num = int(time.time()) // 30
-        otp_now = otp.get_hotp(auth_secret, interval_num)
-        otp_prev = otp.get_hotp(auth_secret, interval_num - 1)
-        otp_next = otp.get_hotp(auth_secret, interval_num + 1)
+        interval_now = int(time.time()) // 30
+        otp_now = otp.get_hotp(auth_secret, interval_now)
+        otp_prev = otp.get_hotp(auth_secret, interval_now - 1)
+        otp_next = otp.get_hotp(auth_secret, interval_now + 1)
         log('Correct otp: ' + str([otp_prev, otp_now, otp_next]))
         if auth_otp == otp_now or auth_otp == otp_prev or auth_otp == otp_next:
           is_valid = True
@@ -66,13 +67,23 @@ def authenticate():
     if not is_valid:
       log('Incorrect token')
     else:
-      # Update device trust
-      auth_uses = int(rows[0][1])
-      auth_uses += 1
-      cur.execute('UPDATE devices SET uses=%s WHERE id=%s', (auth_uses, auth_id))
-      conn.commit()
-    
-      auth_trust = calculate_trust(auth_uses)
+      # Check for robotic device abuse (simplistic)
+      time_now = int(time.time())
+      secs_since_last_use = time_now - auth_lastused
+      log(secs_since_last_use)
+
+      if secs_since_last_use < 5:
+        # Rejection
+        log('Robot detected; reject request')
+        cur.execute('UPDATE devices SET last_used=%s WHERE id=%s', (time_now, auth_id))
+        conn.commit()
+      else:
+        # Update device trust
+        auth_uses += 1
+        cur.execute('UPDATE devices SET uses=%s, last_used=%s WHERE id=%s', (auth_uses, time_now, auth_id))
+        conn.commit()
+
+        auth_trust = calculate_trust(auth_uses)
 
   # Send request info to remote URL
   if auth_trust > 0:
