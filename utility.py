@@ -12,7 +12,7 @@ def main(argc, argv):
   usage = 'usage: python %s [register [local|remote] | authenticate [local|remote] uid secret token]' % argv[0]
   localURL = 'http://localhost:5000'
   remoteURL = 'http://eecs588-auth.herokuapp.com'
-  targetURL = 'https://gotdevices.herokuapp.com/devicecheck'
+  targetURL = 'https://gotdevices.herokuapp.com/api/devicecheck'
 
   if argc < 3:
     print  usage
