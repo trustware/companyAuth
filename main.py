@@ -39,8 +39,7 @@ def authenticate():
   
   auth_trust = 0
   if len(rows) == 0:
-    auth_trust = 0
-    log('Invalid device -> auth_trust=0')
+    log('Invalid device')
   else:
     # Get info
     auth_uses = int(rows[0][1])
@@ -65,7 +64,7 @@ def authenticate():
       log('Invalid token')
       is_valid = False
     if not is_valid:
-      log('Incorrect token -> auth_trust=0')
+      log('Incorrect token')
     else:
       # Update device trust
       auth_uses = int(rows[0][1])
@@ -74,10 +73,14 @@ def authenticate():
       conn.commit()
     
       auth_trust = calculate_trust(auth_uses)
-      log('OK device -> auth_trust='+str(auth_trust))
 
   # Send request info to remote URL
-  success = send_to_remote(auth_url, auth_token, auth_trust)
+  if auth_trust > 0:
+    log('sending ' + str(auth_trust) + ' trust to remote server')
+    success = send_to_remote(auth_url, auth_token, auth_trust)
+  else:
+    log('ignored request due to 0 trust')
+    success = True
   if not success:
     return 'Could not send to remote', STATUS_INTERNAL_ERROR
 
