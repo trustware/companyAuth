@@ -70,9 +70,9 @@ def authenticate():
       # Check for robotic device abuse (simplistic)
       time_now = int(time.time())
       secs_since_last_use = time_now - auth_lastused
-      log(secs_since_last_use)
+      log("Time since last: " + str(secs_since_last_use))
 
-      if secs_since_last_use < 5:
+      if secs_since_last_use < 10:
         # Rejection
         log('Robot detected; reject request')
         cur.execute('UPDATE devices SET last_used=%s WHERE id=%s', (time_now, auth_id))
