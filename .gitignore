@@ -4,4 +4,6 @@ bin/*
 lib/*
 local/*
 include/*
-
+*.priv
+*.pub
+device_keys.txt
